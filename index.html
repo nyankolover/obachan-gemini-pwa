@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#1a73e8">
+  <title>Gemini</title>
+  
+  <!-- PWA & iOS 設定 -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Gemini">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- ヘッダー -->
+    <header class="app-header">
+      <div class="brand">
+        <img src="assets/icon.svg" alt="Gemini" class="brand-icon">
+        <div class="brand-text">
+          <span class="brand-title">Gemini</span>
+          <span class="brand-sub">なんでも聞いてね</span>
+        </div>
+      </div>
+      <button id="settings-btn" class="icon-btn" aria-label="設定" title="設定">⚙️</button>
+    </header>
+
+    <!-- チャット表示エリア -->
+    <main id="chat-messages" class="chat-messages">
+      <div class="message assistant welcome-card">
+        <div class="msg-bubble">
+          <p class="greeting">こんにちは！👵</p>
+          <p>何か困ったことや、知りたいことはありますか？</p>
+          <p class="hint">下の <strong>🎤「声でお話し」</strong> を押すと、声で質問できますよ。</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- 画像プレビューエリア -->
+    <div id="image-preview-bar" class="image-preview-bar" hidden>
+      <div class="preview-wrapper">
+        <img id="preview-img" src="" alt="添付画像">
+        <button id="clear-image-btn" class="clear-img-btn" aria-label="画像を消す">✕</button>
+      </div>
+      <span class="preview-note">写真がついています</span>
+    </div>
+
+    <!-- 音声認識中の案内バー -->
+    <div id="voice-status-bar" class="voice-status-bar" hidden>
+      <span class="pulse-dot"></span>
+      <span id="voice-status-text">お話ししてください…</span>
+      <button id="stop-voice-btn" class="mini-btn">完了</button>
+    </div>
+
+    <!-- 入力エリア -->
+    <footer class="app-footer">
+      <div class="input-row">
+        <!-- 写真添付ボタン -->
+        <label for="image-upload" class="action-btn file-btn" title="写真をつける">
+          📷<span class="btn-sub">写真</span>
+          <input type="file" id="image-upload" accept="image/*" capture="environment" hidden>
+        </label>
+
+        <!-- マイクボタン（特大） -->
+        <button id="mic-btn" class="action-btn mic-btn" title="声で話す">
+          🎤<span class="btn-sub">声でお話し</span>
+        </button>
+
+        <!-- テキスト入力 -->
+        <div class="textarea-wrapper">
+          <textarea id="user-input" placeholder="文字で質問する…" rows="1"></textarea>
+        </div>
+
+        <!-- 送信ボタン -->
+        <button id="send-btn" class="action-btn send-btn" title="送信">
+          送信
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- 設定モーダル（普段は非表示・洸晟用） -->
+  <div id="settings-modal" class="modal" hidden>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>見守り・接続設定</h3>
+        <button id="close-settings-btn" class="close-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <label for="api-endpoint">Google Apps Script WebアプリURL:</label>
+        <input type="url" id="api-endpoint" placeholder="https://script.google.com/macros/s/.../exec">
+        
+        <label for="api-secret" style="margin-top: 12px;">共有合言葉 (SHARED_SECRET):</label>
+        <input type="password" id="api-secret" placeholder="Code.gsで設定した英数字">
+
+        <p class="modal-hint">※設定はスマホ端末のブラウザ内に安全に保存されます。</p>
+        <button id="save-settings-btn" class="primary-btn">設定を保存する</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a73e8" />
+      <stop offset="50%" stop-color="#673ab7" />
+      <stop offset="100%" stop-color="#9c27b0" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="15" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="115" fill="url(#bg)" />
+  <path d="M 256 90 Q 256 256 422 256 Q 256 256 256 422 Q 256 256 90 256 Q 256 256 256 90 Z" fill="#ffffff" filter="url(#glow)" />
+</svg>

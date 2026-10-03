@@ -1,0 +1,464 @@
+:root {
+  --primary: #1a73e8;
+  --primary-hover: #1557b0;
+  --bg: #f8f9fa;
+  --card-bg: #ffffff;
+  --text-main: #202124;
+  --text-muted: #5f6368;
+  --user-bubble: #e8f0fe;
+  --user-text: #174ea6;
+  --ai-bubble: #ffffff;
+  --border: #dadce0;
+  --danger-bg: #fce8e6;
+  --danger-border: #ea4335;
+  --danger-text: #c5221f;
+  --kosei-bg: #e6f4ea;
+  --kosei-border: #34a853;
+  --kosei-text: #137333;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  background-color: var(--bg);
+  color: var(--text-main);
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-size: 19px;
+  line-height: 1.6;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
+  background: var(--bg);
+}
+
+/* ヘッダー */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  padding-top: max(12px, env(safe-area-inset-top));
+  z-index: 10;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-title {
+  font-size: 22px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #1a73e8, #9c27b0);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  line-height: 1.2;
+}
+
+.brand-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  color: var(--text-muted);
+}
+
+/* チャットエリア */
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  max-width: 88%;
+  animation: fadeIn 0.25s ease-out;
+}
+
+.message.user {
+  align-self: flex-end;
+}
+
+.message.assistant {
+  align-self: flex-start;
+}
+
+.msg-bubble {
+  padding: 14px 18px;
+  border-radius: 20px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.04);
+  word-break: break-word;
+}
+
+.message.user .msg-bubble {
+  background-color: var(--user-bubble);
+  color: var(--user-text);
+  border-bottom-right-radius: 4px;
+}
+
+.message.assistant .msg-bubble {
+  background-color: var(--ai-bubble);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+}
+
+.msg-image {
+  max-width: 100%;
+  max-height: 250px;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  object-fit: cover;
+  border: 1px solid rgba(0,0,0,0.1);
+}
+
+.welcome-card .greeting {
+  font-size: 24px;
+  font-weight: bold;
+  color: var(--primary);
+  margin-bottom: 6px;
+}
+
+.welcome-card .hint {
+  margin-top: 10px;
+  font-size: 16px;
+  background: #f1f3f4;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: #3c4043;
+}
+
+/* 危険アラート枠 */
+.message.risk-alert .msg-bubble {
+  background: var(--danger-bg);
+  border: 2px solid var(--danger-border);
+  color: var(--danger-text);
+}
+
+.risk-tag {
+  display: inline-block;
+  font-size: 14px;
+  font-weight: bold;
+  background: var(--danger-border);
+  color: #fff;
+  padding: 3px 8px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+/* 洸晟（孫）からの直接メッセージ枠 */
+.message.kosei-reply .msg-bubble {
+  background: var(--kosei-bg);
+  border: 2px solid var(--kosei-border);
+  color: var(--kosei-text);
+}
+
+.kosei-tag {
+  display: inline-block;
+  font-size: 14px;
+  font-weight: bold;
+  background: var(--kosei-border);
+  color: #fff;
+  padding: 3px 8px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+/* プレビューバー */
+.image-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #e8eaed;
+  border-top: 1px solid var(--border);
+}
+
+.preview-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.preview-wrapper img {
+  width: 50px;
+  height: 50px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.clear-img-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #5f6368;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.preview-note {
+  font-size: 15px;
+  color: var(--text-muted);
+}
+
+/* 音声案内バー */
+.voice-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #fce8e6;
+  color: #c5221f;
+  font-weight: bold;
+  font-size: 17px;
+  border-top: 2px solid #ea4335;
+}
+
+.pulse-dot {
+  width: 14px;
+  height: 14px;
+  background: #ea4335;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 8px;
+  animation: pulse 1s infinite;
+}
+
+.mini-btn {
+  background: #ea4335;
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+/* フッター・入力部 */
+.app-footer {
+  background: var(--card-bg);
+  border-top: 1px solid var(--border);
+  padding: 10px 12px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+.input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #f1f3f4;
+  color: var(--text-main);
+  cursor: pointer;
+  font-size: 20px;
+  padding: 0 10px;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.action-btn:active {
+  background: #e8eaed;
+  transform: scale(0.96);
+}
+
+.btn-sub {
+  font-size: 11px;
+  font-weight: bold;
+  margin-top: 2px;
+  color: var(--text-muted);
+}
+
+.mic-btn {
+  background: #e8f0fe;
+  border-color: #aecbfa;
+  color: #1a73e8;
+  width: 72px;
+}
+
+.mic-btn.recording {
+  background: #fce8e6;
+  border-color: #f28b82;
+  color: #d93025;
+  animation: pulse 1s infinite;
+}
+
+.textarea-wrapper {
+  flex: 1;
+  background: #fff;
+  border: 2px solid #dadce0;
+  border-radius: 16px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+}
+
+.textarea-wrapper:focus-within {
+  border-color: var(--primary);
+}
+
+textarea {
+  width: 100%;
+  border: none;
+  outline: none;
+  font-size: 18px;
+  resize: none;
+  font-family: inherit;
+  max-height: 120px;
+  line-height: 1.4;
+}
+
+.send-btn {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  font-weight: bold;
+  font-size: 18px;
+  padding: 0 16px;
+  height: 56px;
+}
+
+.send-btn:disabled {
+  background: #dadce0;
+  color: #80868b;
+  cursor: not-allowed;
+}
+
+/* モーダル */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 100;
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.modal-body label {
+  display: block;
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+
+.modal-body input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.modal-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 10px;
+  margin-bottom: 16px;
+}
+
+.primary-btn {
+  width: 100%;
+  padding: 12px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
