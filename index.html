@@ -27,7 +27,11 @@
           <span class="brand-sub">なんでも聞いてね</span>
         </div>
       </div>
-      <button id="settings-btn" class="icon-btn" aria-label="設定" title="設定">⚙️</button>
+      <div class="header-actions">
+        <!-- 洸晟に電話（番号設定済みのときだけ表示） -->
+        <a id="call-btn" class="call-btn" href="#" hidden>📞<span class="btn-sub">洸晟に電話</span></a>
+        <button id="settings-btn" class="icon-btn" aria-label="設定" title="設定">⚙️</button>
+      </div>
     </header>
 
     <!-- チャット表示エリア -->
@@ -37,6 +41,8 @@
           <p class="greeting">こんにちは！👵</p>
           <p>何か困ったことや、知りたいことはありますか？</p>
           <p class="hint">下の <strong>🎤「声でお話し」</strong> を押すと、声で質問できますよ。</p>
+          <p class="hint">あやしい広告や画面を見つけたら <strong>📰「この広告あやしい？」</strong> を押して写真を送ってね。</p>
+          <p class="hint hint-call" id="welcome-call-hint" hidden>困ったときは右上の <strong>📞</strong> からいつでも洸晟に電話できます。</p>
         </div>
       </div>
     </main>
@@ -57,13 +63,25 @@
       <button id="stop-voice-btn" class="mini-btn">完了</button>
     </div>
 
+    <!-- 詐欺チェック・ワンタップ相談ボタン -->
+    <nav class="quick-actions" aria-label="かんたん相談">
+      <button class="quick-chip" data-mode="ad_check" data-photo="1"
+        data-prompt="この広告、あやしくないですか？押しても大丈夫ですか？">📰 この広告あやしい？</button>
+      <button class="quick-chip" data-mode="ad_check" data-photo="1"
+        data-prompt="この画面が出てきました。どうすればいいですか？">📱 この画面なに？</button>
+      <button class="quick-chip" data-mode="ad_check" data-photo="1"
+        data-prompt="このメール（またはメッセージ）は本物ですか？">✉️ このメール本物？</button>
+      <button class="quick-chip" data-mode="chat"
+        data-prompt="知らない番号から電話がかかってきました。出ても大丈夫ですか？">📞 知らない電話が来た</button>
+    </nav>
+
     <!-- 入力エリア -->
     <footer class="app-footer">
       <div class="input-row">
         <!-- 写真添付ボタン -->
         <label for="image-upload" class="action-btn file-btn" title="写真をつける">
           📷<span class="btn-sub">写真</span>
-          <input type="file" id="image-upload" accept="image/*" capture="environment" hidden>
+          <input type="file" id="image-upload" accept="image/*" hidden>
         </label>
 
         <!-- マイクボタン（特大） -->
@@ -98,7 +116,10 @@
         <label for="api-secret" style="margin-top: 12px;">共有合言葉 (SHARED_SECRET):</label>
         <input type="password" id="api-secret" placeholder="Code.gsで設定した英数字">
 
-        <p class="modal-hint">※設定はスマホ端末のブラウザ内に安全に保存されます。</p>
+        <label for="kosei-tel" style="margin-top: 12px;">洸晟の電話番号（📞ボタン用）:</label>
+        <input type="tel" id="kosei-tel" placeholder="例: 09012345678">
+
+        <p class="modal-hint">※設定はスマホ端末のブラウザ内に安全に保存されます。電話番号はGAS側の KOSEI_TEL からも自動で受け取ります。</p>
         <button id="save-settings-btn" class="primary-btn">設定を保存する</button>
       </div>
     </div>

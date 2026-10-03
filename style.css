@@ -24,6 +24,11 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* hidden属性を display:flex 等より優先させる（モーダル・バー・📞ボタンの表示切替用） */
+[hidden] {
+  display: none !important;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
   background-color: var(--bg);
@@ -98,6 +103,38 @@ body {
   padding: 8px;
   border-radius: 50%;
   color: var(--text-muted);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 📞 洸晟に電話（常設） */
+.call-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  height: 52px;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: var(--kosei-bg);
+  border: 2px solid var(--kosei-border);
+  color: var(--kosei-text);
+  font-size: 22px;
+  text-decoration: none;
+  line-height: 1;
+}
+
+.call-btn .btn-sub {
+  color: var(--kosei-text);
+}
+
+.call-btn:active {
+  transform: scale(0.96);
 }
 
 /* チャットエリア */
@@ -206,6 +243,75 @@ body {
   margin-bottom: 8px;
 }
 
+.kosei-box {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+
+.message.sos-done .msg-bubble {
+  background: var(--kosei-bg);
+  border: 2px solid var(--kosei-border);
+  color: var(--kosei-text);
+}
+
+/* 危険時の特大ボタン */
+.alert-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.big-call-btn,
+.big-sos-btn {
+  display: block;
+  width: 100%;
+  padding: 16px 12px;
+  border-radius: 14px;
+  font-size: 21px;
+  font-weight: bold;
+  text-align: center;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.big-call-btn {
+  background: var(--kosei-border);
+  color: #fff;
+}
+
+.big-sos-btn {
+  background: var(--danger-border);
+  color: #fff;
+}
+
+.big-call-btn:active,
+.big-sos-btn:active {
+  transform: scale(0.97);
+}
+
+/* 🔊 読み上げ */
+.speak-btn {
+  display: inline-block;
+  margin-top: 10px;
+  background: #f1f3f4;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 15px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.message.risk-alert .speak-btn {
+  background: #fff;
+  color: var(--danger-text);
+}
+
 /* プレビューバー */
 .image-preview-bar {
   display: flex;
@@ -279,6 +385,42 @@ body {
   font-size: 15px;
   font-weight: bold;
   cursor: pointer;
+}
+
+/* ワンタップ相談ボタン（詐欺広告チェック） */
+.quick-actions {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 12px;
+  background: var(--card-bg);
+  border-top: 1px solid var(--border);
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.quick-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.quick-chip {
+  flex-shrink: 0;
+  background: #fff8e1;
+  border: 2px solid #f9ab00;
+  color: #7a4f00;
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.quick-chip:active,
+.quick-chip.active {
+  background: #f9ab00;
+  color: #fff;
 }
 
 /* フッター・入力部 */
