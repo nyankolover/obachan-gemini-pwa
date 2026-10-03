@@ -6,7 +6,8 @@
  * 2. Gemini API で画像＋テキストを解析し、親切で安全な回答を生成
  * 3. 詐欺・危険操作の疑い（0〜100）をリアルタイム判定
  *    - 「この広告あやしい？」モード（mode: 'ad_check'）は詐欺広告・偽警告・偽メール専用の判定
- *    - Gemini が落ちていてもキーワード安全網で最低限の警告を返す
+ *    - 会話履歴（history）を受け取り、Gemini と複数ターンで会話できる
+ *    - Gemini が落ちているときだけキーワード判定で最低限の警告を返す（通常は Gemini の判断を優先）
  * 4. 洸晟へ自動通報（Discord #Claudenotice ＋ メール二重化、危険時はメンション）
  * 5. 🆘ボタン（type: 'sos'）は Gemini を通さず即時通報
  * 6. Googleスプレッドシート「おばあちゃんGemini見守りログ」に全件自動保存
@@ -29,7 +30,7 @@ const MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
 const NOTIFY_AT = 60;        // 危険度60以上でDiscordに強力警告（メンション＋メール）
 const REASON_AT = 40;        // 危険度40以上で判定理由も通知
 const DISCORD_MAX_LEN = 1900; // Discord の 2000 文字制限対策
-const SHEET_HEADER = ['日時', 'おばあちゃんの質問', '写真', '危険度', 'カテゴリ', '理由', 'Geminiの回答', 'モード/種別'];
+const SHEET_HEADER = ['日時', '質問', '写真', '危険度', 'カテゴリ', '理由', 'Geminiの回答', 'モード/種別'];
 
 // ---------------------------------------------------------------------------
 // エントリポイント
@@ -59,6 +60,7 @@ function doPost(e) {
   const imageBase64 = body.image || null; // DataURL (data:image/jpeg;base64,...)
   const mode = body.mode === 'ad_check' ? 'ad_check' : 'chat';
   const type = body.type === 'sos' ? 'sos' : 'question';
+  const history = sanitizeHistory_(body.history);
 
   // 🆘 SOSボタン：Geminiを通さず即時通報
   if (type === 'sos') {
@@ -70,7 +72,7 @@ function doPost(e) {
   }
 
   // 1. Gemini API による回答生成 ＆ 危険度判定（＋キーワード安全網）
-  const result = askGeminiWithSafety_(question, imageBase64, mode, props);
+  const result = askGeminiWithSafety_(question, imageBase64, mode, history, props);
 
   // 2. スプレッドシートに全件記録
   safeRun_('logToSheet', () => logToSheet_(props, question, imageBase64 ? 'あり' : 'なし', result, mode));
@@ -92,10 +94,10 @@ function doPost(e) {
 /** 🆘 SOS処理 */
 function handleSos_(props, contextText) {
   const result = {
-    answer: '洸晟に知らせました。すぐ連絡が来るので、お金を払ったり番号を教えたりせず、何もしないで待っていてね。',
+    answer: '洸晟に知らせました。連絡が来るまで、お金を払ったり番号を教えたりせず、そのままお待ちください。',
     risk: 100,
     category: 'SOSボタン',
-    reason: 'おばあちゃんが🆘ボタンを押しました。' + (contextText ? '直前の相談: ' + contextText : '')
+    reason: '🆘ボタンが押されました。' + (contextText ? '直前の相談: ' + contextText : '')
   };
   safeRun_('logToSheet', () => logToSheet_(props, contextText || '（SOSボタン）', 'なし', result, 'sos'));
   safeRun_('notify', () => notifyKosei_(props, contextText, false, result, 'sos'));
@@ -115,13 +117,13 @@ function handleSos_(props, contextText) {
 /**
  * Gemini API で回答生成とセキュリティ判定を同時に行う
  */
-function askGeminiWithSafety_(q, imageBase64, mode, props) {
+function askGeminiWithSafety_(q, imageBase64, mode, history, props) {
   const key = props.getProperty('GEMINI_API_KEY');
   const heuristic = localRiskCheck_(q);
 
   if (!key) {
     return {
-      answer: '現在設定を準備中です。孫の洸晟に設定を確認してもらってくださいね。',
+      answer: '現在、設定の準備中です。洸晟に設定を確認してもらってください。',
       risk: 0,
       category: '設定未完了',
       reason: 'APIキー未設定'
@@ -129,13 +131,14 @@ function askGeminiWithSafety_(q, imageBase64, mode, props) {
   }
 
   const systemInstruction =
-    'あなたは高齢の祖母に寄り添う親切で優しいAIアシスタント「Gemini」です。孫の「洸晟（こうせい）」が見守っています。\n\n' +
+    'あなたは AI アシスタント「Gemini」です。利用者は高齢の女性で、孫の「洸晟（こうせい）」が見守っています。\n\n' +
     '【基本姿勢】\n' +
-    '・とても丁寧で温かみのある優しい日本語（敬語）で答えてください。\n' +
-    '・スマホやパソコンの専門用語（ブラウザ、キャッシュ、認証、クラウド等）はできるだけ使わず、小学生やお年寄りでも直感的にわかる日常の言葉に噛み砕いてください。\n' +
-    '・文字数は多すぎず、2〜4文程度で読みやすく改行を入れてください。\n\n' +
+    '・落ち着いた丁寧な日本語（敬語）で、相手を一人の大人として尊重して答えてください。子ども扱いや「おばあちゃん」などの呼びかけはしないでください。\n' +
+    '・スマホやパソコンの専門用語（ブラウザ、キャッシュ、認証、クラウド等）はなるべく避け、日常の言葉で説明してください。\n' +
+    '・文字数は多すぎず、2〜4文程度で読みやすく改行を入れてください。\n' +
+    '・これまでの会話の流れをふまえて答えてください。\n\n' +
     '【⚠️ 最重要：セキュリティ・詐欺ガードレール】\n' +
-    '祖母が以下のような危険・詐欺の話題に巻き込まれている疑いがある場合、絶対に祖母自身に対処させず、必ず「洸晟に電話して確認してね」と誘導してください。\n' +
+    '利用者が以下のような危険・詐欺の話題に巻き込まれている疑いがある場合、本人に対処させず、必ず「洸晟に電話して確認してください」と案内してください。\n' +
     '・お金の支払い、振込、未払い料金、還付金、給付金、当選、宝くじ\n' +
     '・コンビニで電子マネーやギフトカード（Apple、Google、Amazon等）を買って番号を教えるよう言われた\n' +
     '・「ウイルスに感染しました」「警告」などの不気味な画面、記載された電話番号に電話するよう促す表示\n' +
@@ -146,22 +149,22 @@ function askGeminiWithSafety_(q, imageBase64, mode, props) {
     '・宅配業者・銀行・役所・携帯会社などを名乗るSMSやメールで、リンクを押して情報を入れるよう促すもの\n' +
     '・極端に安い通販サイト、「残りわずか」「本日限り」と急かす広告、懸賞当選・ポイント付与を装う広告\n' +
     '・親族を名乗る「電話番号が変わった」「至急お金が必要」という連絡\n' +
-    '危険な話題の時は、回答の冒頭に「⚠️ おばあちゃん、これはあやしい詐欺の可能性がとても高いです！」と優しく警告し、「お金を払ったり番号を教えたり絶対にしないで、今すぐ洸晟に電話してみてね！」と伝えてください。\n' +
+    '危険な話題の時は、回答の冒頭に「⚠️ これは詐欺の可能性がとても高いです。」と伝え、「お金を払ったり番号を教えたりせず、今すぐ洸晟に電話して確認してください。」と案内してください。\n' +
     '安全な話題のときは、むやみに怖がらせず普通に親切に答えてください。';
 
   const adCheckInstruction =
     '【📰 詐欺広告・偽画面チェックモード】\n' +
-    '祖母が「この広告・画面・メールはあやしい？」と写真を送ってきました。写真の中の広告・ポップアップ・通知・メール・SMS・ウェブページを詳しく読み取り、' +
+    '利用者が「この広告・画面・メールはあやしい？」と写真を送ってきました。写真の中の広告・ポップアップ・通知・メール・SMS・ウェブページを詳しく読み取り、' +
     '詐欺広告やフィッシングの典型パターン（偽のウイルス警告、偽の当選・ポイント付与、有名人を使った投資広告、極端な値引きの偽通販、宅配・銀行・役所を装うメッセージ、' +
     '急かす文言、電話番号やリンクへの誘導、個人情報やカード番号の入力欄、不自然な日本語やロゴ）に当てはまるか判定してください。\n' +
-    '回答の1行目は必ず次のいずれかで始めてください：「⚠️ これは詐欺広告の可能性がとても高いです」「🟡 少しあやしいので、押さずに洸晟に見せてください」「🟢 これは普通の広告（または本物）のようです」。\n' +
+    '回答の1行目は必ず次のいずれかで始めてください：「⚠️ これは詐欺広告の可能性がとても高いです」「🟡 少しあやしいので、押さずに洸晟に確認してください」「🟢 これは普通の広告（または本物）のようです」。\n' +
     '危険な場合は「押さない・電話しない・何も入力しない・画面を閉じる」ことと「洸晟に電話する」ことを伝えてください。\n' +
-    '判断がつかないときは安全側に倒し、🟡として洸晟に見せるよう促してください。';
+    '判断がつかないときは安全側に倒し、🟡として洸晟に確認するよう促してください。';
 
   const promptText =
     (mode === 'ad_check' ? adCheckInstruction + '\n\n' : '') +
-    `【祖母からの質問】\n${q || '（画像についての相談）'}\n\n` +
-    '回答とともに、祖母が詐欺や危険な操作に巻き込まれている危険度（0〜100）と理由をJSON形式で判定してください。';
+    `【利用者からの質問】\n${q || '（画像についての相談）'}\n\n` +
+    '回答とともに、利用者が詐欺や危険な操作に巻き込まれている危険度（0〜100）と理由をJSON形式で判定してください。';
 
   // Multimodal Partsの構築
   const parts = [];
@@ -178,8 +181,11 @@ function askGeminiWithSafety_(q, imageBase64, mode, props) {
   }
   parts.push({ text: promptText });
 
+  const contents = history.map(h => ({ role: h.role, parts: [{ text: h.text }] }));
+  contents.push({ role: 'user', parts: parts });
+
   const payload = {
-    contents: [{ parts: parts }],
+    contents: contents,
     systemInstruction: { parts: [{ text: systemInstruction }] },
     generationConfig: {
       temperature: 0.3,
@@ -187,7 +193,7 @@ function askGeminiWithSafety_(q, imageBase64, mode, props) {
       responseSchema: {
         type: 'OBJECT',
         properties: {
-          answer: { type: 'STRING', description: '祖母への親切で優しい回答テキスト' },
+          answer: { type: 'STRING', description: '利用者への丁寧で分かりやすい回答テキスト' },
           risk: { type: 'INTEGER', description: '危険度スコア（0〜100）。安全なら0〜20、怪しいなら60〜100' },
           category: { type: 'STRING', description: '安全／詐欺の疑い／詐欺広告／偽メール・SMS／お金の操作／警告画面／遠隔操作／個人情報／投資勧誘／体調 のいずれか' },
           reason: { type: 'STRING', description: '孫（洸晟）への状況説明・危険と判定した理由' }
@@ -225,14 +231,14 @@ function askGeminiWithSafety_(q, imageBase64, mode, props) {
   // 全モデル失敗：キーワード安全網だけで最低限の返事をする
   if (heuristic.risk >= NOTIFY_AT) {
     return {
-      answer: '⚠️ おばあちゃん、このお話はあやしい詐欺の可能性がとても高いです！\nお金を払ったり番号を教えたりせず、今すぐ洸晟に電話してみてね。',
+      answer: '⚠️ この内容は詐欺の可能性がとても高いです。\nお金を払ったり番号を教えたりせず、今すぐ洸晟に電話して確認してください。',
       risk: heuristic.risk,
       category: '詐欺の疑い（キーワード判定）',
       reason: '全モデル呼び出し失敗。キーワード安全網が反応: ' + heuristic.hits.join('、')
     };
   }
   return {
-    answer: 'おばあちゃん、少し考え込んでしまいました。もう一度ゆっくりお話ししてね。\n急ぎのときは洸晟に電話してね。',
+    answer: 'うまく答えられませんでした。もう一度お試しください。\nお急ぎのときは洸晟に電話してください。',
     risk: heuristic.risk,
     category: '判定エラー',
     reason: '全モデル呼び出し失敗' + (heuristic.hits.length ? '（キーワード: ' + heuristic.hits.join('、') + '）' : '')
@@ -243,7 +249,7 @@ function askGeminiWithSafety_(q, imageBase64, mode, props) {
 function normalizeResult_(r) {
   const risk = Math.max(0, Math.min(100, parseInt(r.risk, 10) || 0));
   return {
-    answer: String(r.answer || 'おばあちゃん、もう一度ゆっくりお話ししてね。'),
+    answer: String(r.answer || 'もう一度お試しください。'),
     risk: risk,
     category: String(r.category || '不明'),
     reason: String(r.reason || '')
@@ -288,18 +294,24 @@ function localRiskCheck_(text) {
   return { risk: risk, hits: hits };
 }
 
-/** Geminiの判定にキーワード安全網を重ねる（強いパターンは必ず通報対象に引き上げる） */
+/**
+ * Gemini の判定を優先し、キーワード判定は洸晟向けの判定理由に添えるだけ（本文や危険度は変えない）。
+ * Gemini が落ちているときは askGeminiWithSafety_ のフォールバックでキーワード判定が使われる。
+ */
 function applyHeuristic_(result, heuristic) {
-  if (heuristic.risk >= NOTIFY_AT && result.risk < NOTIFY_AT) {
-    result.risk = heuristic.risk;
-    result.reason = (result.reason ? result.reason + ' ／ ' : '') + 'キーワード安全網が反応: ' + heuristic.hits.join('、');
-    if (!/^⚠️/.test(result.answer)) {
-      result.answer = '⚠️ おばあちゃん、念のためこのお話は洸晟に電話して確認してね。\n' + result.answer;
-    }
-  } else if (heuristic.hits.length && result.risk >= REASON_AT) {
+  if (heuristic.hits.length) {
     result.reason = (result.reason ? result.reason + ' ／ ' : '') + 'キーワード: ' + heuristic.hits.join('、');
   }
   return result;
+}
+
+/** アプリから届いた会話履歴を安全な形に整える（文字のみ・直近16件まで） */
+function sanitizeHistory_(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(h => h && typeof h.text === 'string' && h.text.trim())
+    .slice(-16)
+    .map(h => ({ role: h.role === 'model' ? 'model' : 'user', text: String(h.text).slice(0, 1500) }));
 }
 
 // ---------------------------------------------------------------------------
@@ -317,11 +329,11 @@ function notifyKosei_(props, q, hasImage, result, mode) {
 
   let title;
   if (mode === 'sos') {
-    title = `${mention} 🆘🆘🆘 **【至急】おばあちゃんがSOSボタンを押しました！今すぐ電話してください**`;
+    title = `${mention} 🆘🆘🆘 **【至急】SOSボタンが押されました。今すぐ電話してください**`;
   } else if (isAlert) {
-    title = `${mention} 🚨⚠️ **【至急注意】おばあちゃんの相談に危険フラグ**（危険度: ${result.risk} / ${result.category}）`;
+    title = `${mention} 🚨⚠️ **【至急注意】相談に危険フラグ**（危険度: ${result.risk} / ${result.category}）`;
   } else {
-    title = `👵💬 おばあちゃんがGeminiに相談しました（${modeLabel} / 危険度: ${result.risk}）`;
+    title = `💬 Geminiへの相談（${modeLabel} / 危険度: ${result.risk}）`;
   }
 
   let content = `${title.trim()}\n` +
@@ -341,10 +353,10 @@ function notifyKosei_(props, q, hasImage, result, mode) {
   // 危険時・SOS時はメールでも二重通報。Discord失敗時もメールへフォールバック。
   if (isAlert || !discordOk) {
     const subject = mode === 'sos'
-      ? '🆘【至急】おばあちゃんがSOSボタンを押しました'
+      ? '🆘【至急】SOSボタンが押されました'
       : isAlert
-        ? `🚨【至急】おばあちゃんの相談に危険フラグ（危険度${result.risk}）`
-        : '👵 おばあちゃんの相談（Discord通知失敗のためメール）';
+        ? `🚨【至急】相談に危険フラグ（危険度${result.risk}）`
+        : '💬 Geminiへの相談（Discord通知失敗のためメール）';
     const bodyText =
       `${subject}\n\n` +
       `■ 種別: ${modeLabel}\n` +
@@ -493,7 +505,7 @@ function sendMonthlyReport() {
   ).join('\n') || '・なし 🎉';
 
   const report =
-    `📊 **おばあちゃん見守り 月次レポート（${label}）**\n` +
+    `📊 **見守り 月次レポート（${label}）**\n` +
     `・相談回数: ${total}件（使った日数: ${activeDays}日）\n` +
     `・🚨 危険フラグ: ${alerts.length}件\n` +
     `・🆘 SOSボタン: ${sos.length}件\n` +
@@ -503,7 +515,7 @@ function sendMonthlyReport() {
     `ログ: ${sheetUrl_(props)}`;
 
   sendDiscord_(props, report.length > DISCORD_MAX_LEN ? report.slice(0, DISCORD_MAX_LEN - 3) + '…' : report);
-  sendEmail_(props, `📊 おばあちゃん見守り 月次レポート（${label}）`, report.replace(/\*\*/g, ''));
+  sendEmail_(props, `📊 見守り 月次レポート（${label}）`, report.replace(/\*\*/g, ''));
   return report;
 }
 

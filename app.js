@@ -3,53 +3,73 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(err => console.log('SW registration failed:', err));
 }
 
-// DOM要素
-const chatMessages = document.getElementById('chat-messages');
-const userInput = document.getElementById('user-input');
-const sendBtn = document.getElementById('send-btn');
-const micBtn = document.getElementById('mic-btn');
-const imageUpload = document.getElementById('image-upload');
-const imagePreviewBar = document.getElementById('image-preview-bar');
-const previewImg = document.getElementById('preview-img');
-const clearImageBtn = document.getElementById('clear-image-btn');
-const voiceStatusBar = document.getElementById('voice-status-bar');
-const voiceStatusText = document.getElementById('voice-status-text');
-const stopVoiceBtn = document.getElementById('stop-voice-btn');
-const callBtn = document.getElementById('call-btn');
-const welcomeCallHint = document.getElementById('welcome-call-hint');
-const quickChips = document.querySelectorAll('.quick-chip');
-
-// 設定モーダル
-const settingsBtn = document.getElementById('settings-btn');
-const settingsModal = document.getElementById('settings-modal');
-const closeSettingsBtn = document.getElementById('close-settings-btn');
-const saveSettingsBtn = document.getElementById('save-settings-btn');
-const apiEndpointInput = document.getElementById('api-endpoint');
-const apiSecretInput = document.getElementById('api-secret');
-const koseiTelInput = document.getElementById('kosei-tel');
+// ---------------------------------------------------------------------------
+// DOM
+// ---------------------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+const chatEl = $('chat-messages');
+const welcomeEl = $('welcome');
+const userInput = $('user-input');
+const sendBtn = $('send-btn');
+const micBtn = $('mic-btn');
+const imageUpload = $('image-upload');
+const imagePreviewBar = $('image-preview-bar');
+const previewImg = $('preview-img');
+const clearImageBtn = $('clear-image-btn');
+const voiceStatusBar = $('voice-status-bar');
+const voiceStatusText = $('voice-status-text');
+const stopVoiceBtn = $('stop-voice-btn');
+const composerBox = $('composer-box');
+const callBtn = $('call-btn');
+const callBtnSide = $('call-btn-side');
+const sidebar = $('sidebar');
+const sidebarOverlay = $('sidebar-overlay');
+const menuBtn = $('menu-btn');
+const sidebarCloseBtn = $('sidebar-close-btn');
+const newChatBtn = $('new-chat-btn');
+const chatListEl = $('chat-list');
+const settingsBtn = $('settings-btn');
+const settingsModal = $('settings-modal');
+const closeSettingsBtn = $('close-settings-btn');
+const saveSettingsBtn = $('save-settings-btn');
+const clearChatsBtn = $('clear-chats-btn');
+const apiEndpointInput = $('api-endpoint');
+const apiSecretInput = $('api-secret');
+const koseiTelInput = $('kosei-tel');
+const quickButtons = document.querySelectorAll('[data-prompt]');
 
 // 危険度しきい値（バックエンド NOTIFY_AT と同じ）
 const RISK_ALERT_AT = 60;
+const HISTORY_TURNS = 8;      // Gemini に渡す直近のやり取り数
+const MAX_CHATS = 50;         // 端末に保存するチャット数
+const IMAGE_MAX_PX = 1280;    // 送信前に縮小する最大辺
 
-// 状態管理
+// ---------------------------------------------------------------------------
+// 状態
+// ---------------------------------------------------------------------------
+let chats = [];               // [{id, title, updated, messages:[{role:'user'|'model', text, hasImage, risk, kosei_reply, sos}]}]
+let currentChatId = null;
 let currentImageBase64 = null;
-let currentMode = 'chat'; // 'chat' | 'ad_check'
+let currentMode = 'chat';     // 'chat' | 'ad_check'
 let isRecording = false;
 let recognition = null;
-let lastUserText = '';
+let busy = false;
 
-// ---------- 設定 ----------
-
-// 設定のロード & URLパラメータ自動適用
+// ---------------------------------------------------------------------------
+// 設定
+// ---------------------------------------------------------------------------
 function loadSettings() {
   const params = new URLSearchParams(window.location.search);
   if (params.get('endpoint')) localStorage.setItem('gemini_api_endpoint', params.get('endpoint'));
   if (params.get('secret')) localStorage.setItem('gemini_api_secret', params.get('secret'));
   if (params.get('tel')) localStorage.setItem('kosei_tel', normalizeTel(params.get('tel')));
+  if (params.toString() && window.history.replaceState) {
+    // 合言葉をURLに残さない
+    window.history.replaceState({}, '', window.location.pathname);
+  }
 
   apiEndpointInput.value = localStorage.getItem('gemini_api_endpoint') || '';
   apiSecretInput.value = localStorage.getItem('gemini_api_secret') || '';
-  koseiTelInput.value = localStorage.getItem('kosei_tel') || '';
   updateCallButton();
 }
 
@@ -59,7 +79,6 @@ function saveSettings() {
   localStorage.setItem('kosei_tel', normalizeTel(koseiTelInput.value));
   updateCallButton();
   settingsModal.hidden = true;
-  alert('設定を保存しました！');
 }
 
 function normalizeTel(raw) {
@@ -70,42 +89,213 @@ function getKoseiTel() {
   return localStorage.getItem('kosei_tel') || '';
 }
 
-// 📞ボタンは電話番号が設定されているときだけ表示
 function updateCallButton() {
   const tel = getKoseiTel();
   koseiTelInput.value = tel;
-  if (tel) {
-    callBtn.href = 'tel:' + tel;
-    callBtn.hidden = false;
-    welcomeCallHint.hidden = false;
-  } else {
-    callBtn.hidden = true;
-    welcomeCallHint.hidden = true;
+  [callBtn, callBtnSide].forEach(btn => {
+    if (tel) {
+      btn.href = 'tel:' + tel;
+      btn.hidden = false;
+    } else {
+      btn.hidden = true;
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// チャット履歴（端末内に保存）
+// ---------------------------------------------------------------------------
+function loadChats() {
+  try {
+    chats = JSON.parse(localStorage.getItem('gemini_chats') || '[]');
+    if (!Array.isArray(chats)) chats = [];
+  } catch (_) {
+    chats = [];
   }
 }
 
-// ---------- 入力まわり ----------
+function saveChats() {
+  chats.sort((a, b) => b.updated - a.updated);
+  if (chats.length > MAX_CHATS) chats = chats.slice(0, MAX_CHATS);
+  try {
+    localStorage.setItem('gemini_chats', JSON.stringify(chats));
+  } catch (e) {
+    console.warn('保存容量を超えたため古いチャットを削除します', e);
+    chats = chats.slice(0, Math.max(1, Math.floor(chats.length / 2)));
+    try { localStorage.setItem('gemini_chats', JSON.stringify(chats)); } catch (_) {}
+  }
+}
 
-// 自動リサイズ textarea
+function currentChat() {
+  return chats.find(c => c.id === currentChatId) || null;
+}
+
+function newChat() {
+  currentChatId = null;
+  renderChat();
+  renderChatList();
+  closeSidebar();
+  userInput.focus();
+}
+
+function ensureChat(firstText) {
+  let chat = currentChat();
+  if (chat) return chat;
+  chat = {
+    id: 'c' + Date.now().toString(36),
+    title: (firstText || '写真の相談').slice(0, 30),
+    updated: Date.now(),
+    messages: []
+  };
+  chats.unshift(chat);
+  currentChatId = chat.id;
+  return chat;
+}
+
+function openChat(id) {
+  currentChatId = id;
+  renderChat();
+  renderChatList();
+  closeSidebar();
+}
+
+function deleteChat(id) {
+  if (!confirm('このチャットを消しますか？')) return;
+  chats = chats.filter(c => c.id !== id);
+  saveChats();
+  if (currentChatId === id) currentChatId = null;
+  renderChat();
+  renderChatList();
+}
+
+function addMessage(msg) {
+  const chat = ensureChat(msg.role === 'user' ? msg.text : '');
+  chat.messages.push(msg);
+  chat.updated = Date.now();
+  saveChats();
+  renderChatList();
+  return msg;
+}
+
+function renderChatList() {
+  chatListEl.innerHTML = '';
+  if (!chats.length) {
+    const p = document.createElement('p');
+    p.className = 'chat-list-empty';
+    p.textContent = 'まだチャットはありません';
+    chatListEl.appendChild(p);
+    return;
+  }
+  chats.forEach(chat => {
+    const item = document.createElement('div');
+    item.className = 'chat-item' + (chat.id === currentChatId ? ' active' : '');
+    item.setAttribute('role', 'button');
+    item.tabIndex = 0;
+    const title = document.createElement('span');
+    title.className = 'chat-title';
+    title.textContent = chat.title || '無題';
+    const del = document.createElement('button');
+    del.className = 'chat-del';
+    del.textContent = '✕';
+    del.title = 'このチャットを消す';
+    del.addEventListener('click', (e) => { e.stopPropagation(); deleteChat(chat.id); });
+    item.appendChild(title);
+    item.appendChild(del);
+    item.addEventListener('click', () => openChat(chat.id));
+    item.addEventListener('keydown', (e) => { if (e.key === 'Enter') openChat(chat.id); });
+    chatListEl.appendChild(item);
+  });
+}
+
+// 会話全体を描き直す
+function renderChat() {
+  const chat = currentChat();
+  chatEl.querySelectorAll('.chat-inner').forEach(el => el.remove());
+  if (!chat || !chat.messages.length) {
+    welcomeEl.hidden = false;
+    return;
+  }
+  welcomeEl.hidden = true;
+  const inner = getChatInner();
+  chat.messages.forEach(m => {
+    if (m.role === 'user') inner.appendChild(buildUserMessage(m.text, m.image || null, m.hasImage));
+    else inner.appendChild(buildModelMessage(m));
+  });
+  scrollToBottom();
+}
+
+function getChatInner() {
+  let inner = chatEl.querySelector('.chat-inner');
+  if (!inner) {
+    inner = document.createElement('div');
+    inner.className = 'chat-inner';
+    chatEl.appendChild(inner);
+  }
+  welcomeEl.hidden = true;
+  return inner;
+}
+
+// ---------------------------------------------------------------------------
+// サイドバー
+// ---------------------------------------------------------------------------
+function openSidebar() {
+  sidebar.classList.add('open');
+  sidebarOverlay.hidden = false;
+}
+
+function closeSidebar() {
+  sidebar.classList.remove('open');
+  sidebarOverlay.hidden = true;
+}
+
+menuBtn.addEventListener('click', openSidebar);
+sidebarCloseBtn.addEventListener('click', closeSidebar);
+sidebarOverlay.addEventListener('click', closeSidebar);
+newChatBtn.addEventListener('click', newChat);
+
+// ---------------------------------------------------------------------------
+// 入力まわり
+// ---------------------------------------------------------------------------
 userInput.addEventListener('input', () => {
   userInput.style.height = 'auto';
-  userInput.style.height = Math.min(userInput.scrollHeight, 120) + 'px';
+  userInput.style.height = Math.min(userInput.scrollHeight, 160) + 'px';
 });
 
-// 画像添付ハンドラ
-imageUpload.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-
+// 画像を取り込む（ファイル選択・貼り付け・ドロップ共通）。送信前に縮小する。
+function attachImageFile(file, autoSend) {
+  if (!file || !file.type.startsWith('image/')) return;
   const reader = new FileReader();
   reader.onload = (event) => {
-    currentImageBase64 = event.target.result;
-    previewImg.src = currentImageBase64;
-    imagePreviewBar.hidden = false;
-    // ワンタップ相談（詐欺広告チェック）中は、写真を選んだら自動で送信
-    if (currentMode === 'ad_check') sendMessage();
+    downscaleImage(event.target.result, (dataUrl) => {
+      currentImageBase64 = dataUrl;
+      previewImg.src = dataUrl;
+      imagePreviewBar.hidden = false;
+      if (autoSend) sendMessage();
+    });
   };
   reader.readAsDataURL(file);
+}
+
+function downscaleImage(dataUrl, cb) {
+  const img = new Image();
+  img.onload = () => {
+    const scale = Math.min(1, IMAGE_MAX_PX / Math.max(img.width, img.height));
+    if (scale >= 1 && dataUrl.length < 1.5 * 1024 * 1024) return cb(dataUrl);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(img.width * scale);
+    canvas.height = Math.round(img.height * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    cb(canvas.toDataURL('image/jpeg', 0.85));
+  };
+  img.onerror = () => cb(dataUrl);
+  img.src = dataUrl;
+}
+
+imageUpload.addEventListener('change', (e) => {
+  attachImageFile(e.target.files[0], currentMode === 'ad_check');
 });
 
 clearImageBtn.addEventListener('click', () => {
@@ -114,24 +304,51 @@ clearImageBtn.addEventListener('click', () => {
   imagePreviewBar.hidden = true;
 });
 
-// ワンタップ相談ボタン（詐欺広告チェックなど）
-quickChips.forEach(chip => {
-  chip.addEventListener('click', () => {
-    currentMode = chip.dataset.mode || 'chat';
-    userInput.value = chip.dataset.prompt || '';
-    userInput.dispatchEvent(new Event('input'));
-    quickChips.forEach(c => c.classList.toggle('active', c === chip));
+// パソコン: クリップボードから画像を貼り付け
+document.addEventListener('paste', (e) => {
+  const items = (e.clipboardData && e.clipboardData.items) || [];
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      e.preventDefault();
+      attachImageFile(item.getAsFile(), false);
+      userInput.focus();
+      return;
+    }
+  }
+});
 
-    if (chip.dataset.photo) {
-      // 写真（スクショ）を選んでもらう。選んだら自動送信。
-      imageUpload.click();
+// パソコン: ドラッグ＆ドロップ
+['dragenter', 'dragover'].forEach(ev => composerBox.addEventListener(ev, (e) => {
+  e.preventDefault();
+  composerBox.classList.add('dragover');
+}));
+['dragleave', 'drop'].forEach(ev => composerBox.addEventListener(ev, (e) => {
+  e.preventDefault();
+  composerBox.classList.remove('dragover');
+}));
+composerBox.addEventListener('drop', (e) => {
+  const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  attachImageFile(file, false);
+});
+
+// ワンタップ相談（初期画面のカード／入力欄上のチップ）
+quickButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentMode = btn.dataset.mode || 'chat';
+    userInput.value = btn.dataset.prompt || '';
+    userInput.dispatchEvent(new Event('input'));
+    if (btn.dataset.photo) {
+      if (currentImageBase64) sendMessage();
+      else imageUpload.click();
     } else {
       sendMessage();
     }
   });
 });
 
-// ---------- 音声認識 (Web Speech API) ----------
+// ---------------------------------------------------------------------------
+// 音声認識
+// ---------------------------------------------------------------------------
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (SpeechRecognition) {
   recognition = new SpeechRecognition();
@@ -143,9 +360,8 @@ if (SpeechRecognition) {
     isRecording = true;
     micBtn.classList.add('recording');
     voiceStatusBar.hidden = false;
-    voiceStatusText.textContent = 'お話ししてください… 🎙️';
+    voiceStatusText.textContent = 'お話しください…';
   };
-
   recognition.onresult = (event) => {
     let transcript = '';
     for (let i = event.resultIndex; i < event.results.length; ++i) {
@@ -156,70 +372,53 @@ if (SpeechRecognition) {
       userInput.dispatchEvent(new Event('input'));
     }
   };
-
   recognition.onerror = (event) => {
     console.error('Speech recognition error:', event.error);
     stopRecognition();
   };
-
-  recognition.onend = () => {
-    stopRecognition();
-  };
+  recognition.onend = stopRecognition;
 } else {
-  micBtn.title = 'お使いのブラウザは音声認識に対応していません';
+  micBtn.title = 'このブラウザは音声入力に対応していません';
 }
 
 function startRecognition() {
   if (!recognition) {
-    alert('マイク機能はお使いのブラウザに対応していません');
+    alert('このブラウザは音声入力に対応していません。文字で入力してください。');
     return;
   }
-  try {
-    recognition.start();
-  } catch (err) {
-    console.warn(err);
-  }
+  try { recognition.start(); } catch (err) { console.warn(err); }
 }
 
 function stopRecognition() {
   isRecording = false;
   micBtn.classList.remove('recording');
   voiceStatusBar.hidden = true;
-  if (recognition) {
-    try { recognition.stop(); } catch (_) {}
-  }
+  if (recognition) { try { recognition.stop(); } catch (_) {} }
 }
 
-micBtn.addEventListener('click', () => {
-  if (isRecording) {
-    stopRecognition();
-  } else {
-    startRecognition();
-  }
-});
-
+micBtn.addEventListener('click', () => isRecording ? stopRecognition() : startRecognition());
 stopVoiceBtn.addEventListener('click', stopRecognition);
 
-// ---------- 読み上げ (おばあちゃん向け) ----------
+// 読み上げ
 function speak(text) {
   if (!('speechSynthesis' in window)) return;
   try {
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(String(text).replace(/[⚠️🚨📞🆘💡]/g, ''));
+    const u = new SpeechSynthesisUtterance(String(text).replace(/[⚠️🚨📞🆘💡🟡🟢]/g, ''));
     u.lang = 'ja-JP';
     u.rate = 0.9;
     window.speechSynthesis.speak(u);
   } catch (_) {}
 }
 
-// ---------- 通信 ----------
-
+// ---------------------------------------------------------------------------
+// 通信
+// ---------------------------------------------------------------------------
 function getConnection() {
   const endpoint = localStorage.getItem('gemini_api_endpoint');
   const secret = localStorage.getItem('gemini_api_secret');
   if (!endpoint) {
     settingsModal.hidden = false;
-    alert('右上の⚙️マークから、見守りサーバー（Google Apps Script）のURLを設定してください。');
     return null;
   }
   return { endpoint, secret };
@@ -229,167 +428,180 @@ async function postToBackend(conn, payload) {
   const res = await fetch(conn.endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // GAS CORS対策でtext/plain
-    body: JSON.stringify(Object.assign({ secret: conn.secret, source: 'iphone_pwa', timestamp: new Date().toISOString() }, payload))
+    body: JSON.stringify(Object.assign({
+      secret: conn.secret,
+      source: isDesktop() ? 'pc_web' : 'iphone_pwa',
+      timestamp: new Date().toISOString()
+    }, payload))
   });
   return res.json();
 }
 
-// メッセージ送信処理
+function isDesktop() {
+  return window.matchMedia('(min-width: 900px)').matches;
+}
+
+// Gemini に渡す直近の会話（文字のみ）
+function buildHistory() {
+  const chat = currentChat();
+  if (!chat) return [];
+  return chat.messages
+    .filter(m => m.text && !m.sos)
+    .slice(-HISTORY_TURNS * 2)
+    .map(m => ({ role: m.role === 'user' ? 'user' : 'model', text: String(m.text).slice(0, 1500) }));
+}
+
 async function sendMessage() {
+  if (busy) return;
   const text = userInput.value.trim();
   const image = currentImageBase64;
   const mode = currentMode;
-
   if (!text && !image) return;
 
   const conn = getConnection();
   if (!conn) return;
 
-  // 画面にユーザーメッセージを描画
-  renderUserMessage(text, image);
-  lastUserText = text;
+  const history = buildHistory();
 
-  // 入力リセット
+  // 画面に描画 ＆ 保存（画像は保存容量のため本文には残さない）
+  const inner = getChatInner();
+  inner.appendChild(buildUserMessage(text, image, !!image));
+  addMessage({ role: 'user', text: text, hasImage: !!image, mode: mode });
+  scrollToBottom();
+
   userInput.value = '';
   userInput.style.height = 'auto';
   clearImageBtn.click();
   stopRecognition();
   currentMode = 'chat';
-  quickChips.forEach(c => c.classList.remove('active'));
 
-  // ローディング吹き出しを描画
-  const loadingBubble = renderLoadingMessage();
+  busy = true;
+  sendBtn.disabled = true;
+  const loading = buildLoading();
+  inner.appendChild(loading);
+  scrollToBottom();
 
   try {
-    const data = await postToBackend(conn, { question: text, image: image, mode: mode });
-    loadingBubble.remove();
-
+    const data = await postToBackend(conn, { question: text, image: image, mode: mode, history: history });
+    loading.remove();
     if (data.ok) {
-      // GAS側から洸晟の電話番号が届いたら保存（設定の手間を減らす）
       if (data.kosei_tel && !getKoseiTel()) {
         localStorage.setItem('kosei_tel', normalizeTel(data.kosei_tel));
         updateCallButton();
       }
-      renderAssistantMessage(data.answer, data.risk, data.kosei_reply);
+      const msg = addMessage({ role: 'model', text: data.answer, risk: data.risk || 0, kosei_reply: data.kosei_reply || null });
+      inner.appendChild(buildModelMessage(msg));
     } else {
-      renderAssistantMessage('申し訳ありません。うまく聞き取れませんでした。もう一度お話ししてみてください。', 0);
+      const msg = addMessage({ role: 'model', text: 'うまく受け取れませんでした。もう一度お試しください。', risk: 0 });
+      inner.appendChild(buildModelMessage(msg));
     }
   } catch (err) {
     console.error('Send error:', err);
-    loadingBubble.remove();
-    renderAssistantMessage('通信がうまくつながりませんでした。電波のよいところで、もう一度お話ししてみてください。', 0);
+    loading.remove();
+    const msg = addMessage({ role: 'model', text: '通信がつながりませんでした。電波のよいところで、もう一度お試しください。', risk: 0 });
+    inner.appendChild(buildModelMessage(msg));
+  } finally {
+    busy = false;
+    sendBtn.disabled = false;
+    scrollToBottom();
   }
 }
 
-// 🆘 洸晟へ即時通報（Geminiを通さず、Discord/メールに直送）
-async function sendSOS(contextText) {
+// 洸晟へ即時通報（Gemini を通さず Discord / メールへ）
+async function sendSOS() {
   if (!confirm('洸晟にすぐ知らせますか？')) return;
   const conn = getConnection();
   if (!conn) return;
 
-  const loadingBubble = renderLoadingMessage('洸晟に知らせています…');
+  const chat = currentChat();
+  const lastUser = chat ? [...chat.messages].reverse().find(m => m.role === 'user') : null;
+  const inner = getChatInner();
+  const loading = buildLoading('洸晟に知らせています…');
+  inner.appendChild(loading);
+  scrollToBottom();
+
   try {
-    const data = await postToBackend(conn, { type: 'sos', question: contextText || '' });
-    loadingBubble.remove();
-    if (data.ok) {
-      renderAssistantMessage(data.answer || '洸晟に知らせました。すぐ連絡が来るので、何もせずに待っていてね。', 0, null, { sos: true });
-    } else {
-      renderAssistantMessage('うまく知らせられませんでした。右上の📞から洸晟に電話してね。', 0);
-    }
+    const data = await postToBackend(conn, { type: 'sos', question: lastUser ? lastUser.text : '' });
+    loading.remove();
+    const msg = addMessage({
+      role: 'model',
+      text: data.ok ? (data.answer || '洸晟に知らせました。連絡が来るまで、何もせずにお待ちください。') : '知らせることができませんでした。📞 ボタンから電話してください。',
+      risk: 0,
+      sos: data.ok
+    });
+    inner.appendChild(buildModelMessage(msg));
   } catch (err) {
     console.error('SOS error:', err);
-    loadingBubble.remove();
-    renderAssistantMessage('うまく知らせられませんでした。右上の📞から洸晟に電話してね。', 0);
+    loading.remove();
+    const msg = addMessage({ role: 'model', text: '知らせることができませんでした。📞 ボタンから電話してください。', risk: 0 });
+    inner.appendChild(buildModelMessage(msg));
+  } finally {
+    scrollToBottom();
   }
 }
 
-// ---------- メッセージ描画ヘルパー ----------
-function renderUserMessage(text, imageSrc) {
-  const msgDiv = document.createElement('div');
-  msgDiv.className = 'message user';
-
-  let inner = '<div class="msg-bubble">';
-  if (imageSrc) {
-    inner += `<img src="${imageSrc}" class="msg-image" alt="質問画像">`;
-  }
-  if (text) {
-    inner += `<p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
-  }
+// ---------------------------------------------------------------------------
+// 描画
+// ---------------------------------------------------------------------------
+function buildUserMessage(text, imageSrc, hasImage) {
+  const div = document.createElement('div');
+  div.className = 'message user';
+  let inner = '<div class="msg-body">';
+  if (imageSrc) inner += `<img src="${imageSrc}" class="msg-image" alt="添付画像">`;
+  else if (hasImage) inner += '<p class="msg-image-note">📷 写真を送りました</p>';
+  if (text) inner += `<p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
   inner += '</div>';
-
-  msgDiv.innerHTML = inner;
-  chatMessages.appendChild(msgDiv);
-  scrollToBottom();
+  div.innerHTML = inner;
+  return div;
 }
 
-function renderAssistantMessage(text, risk = 0, koseiReply = null, opts = {}) {
-  const isRisk = risk >= RISK_ALERT_AT;
-  const msgDiv = document.createElement('div');
-  msgDiv.className = 'message assistant' + (isRisk ? ' risk-alert' : '') + (opts.sos ? ' sos-done' : '');
+function buildModelMessage(m) {
+  const isRisk = (m.risk || 0) >= RISK_ALERT_AT;
+  const div = document.createElement('div');
+  div.className = 'message model';
 
-  let inner = '<div class="msg-bubble">';
-  if (isRisk) {
-    inner += '<span class="risk-tag">⚠️ 危険な可能性があります</span>';
-  }
-  if (opts.sos) {
-    inner += '<span class="kosei-tag">🆘 洸晟に知らせました</span>';
-  }
-  inner += `<p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
+  let body = `<img src="assets/icon.svg" class="avatar" alt="">`;
+  body += `<div class="msg-body${isRisk ? ' risk' : ''}${m.sos ? ' sos-done' : ''}">`;
+  body += '<div class="msg-card">';
+  if (isRisk) body += '<span class="tag danger">⚠️ 注意が必要です</span>';
+  if (m.sos) body += '<span class="tag safe">🆘 洸晟に知らせました</span>';
+  body += `<p>${escapeHtml(m.text).replace(/\n/g, '<br>')}</p>`;
 
-  // 洸晟からの直接メッセージ/補足がある場合
-  if (koseiReply) {
-    inner += `
-      <div class="kosei-box">
-        <span class="kosei-tag">💡 孫（洸晟）からのメッセージ</span>
-        <p style="font-weight: 500;">${escapeHtml(koseiReply).replace(/\n/g, '<br>')}</p>
-      </div>
-    `;
+  if (m.kosei_reply) {
+    body += `<div class="kosei-box"><span class="tag safe">洸晟からのメッセージ</span><p>${escapeHtml(m.kosei_reply).replace(/\n/g, '<br>')}</p></div>`;
   }
 
-  // 危険時は特大の「電話」「知らせる」ボタンを出す
   if (isRisk) {
     const tel = getKoseiTel();
-    inner += '<div class="alert-actions">';
-    if (tel) {
-      inner += `<a class="big-call-btn" href="tel:${escapeHtml(tel)}">📞 洸晟に電話する</a>`;
-    }
-    inner += '<button class="big-sos-btn" type="button">🆘 洸晟にすぐ知らせる</button>';
-    inner += '</div>';
+    body += '<div class="alert-actions">';
+    if (tel) body += `<a class="big-call-btn" href="tel:${escapeHtml(tel)}">📞 洸晟に電話する</a>`;
+    body += '<button class="big-sos-btn" type="button">🆘 洸晟にすぐ知らせる</button>';
+    body += '</div>';
   }
+  body += '</div>'; // msg-card
+  body += '<div class="msg-tools"><button class="speak-btn" type="button">🔊 読み上げ</button></div>';
+  body += '</div>';
+  div.innerHTML = body;
 
-  inner += '<button class="speak-btn" type="button" aria-label="読み上げ">🔊 読んで</button>';
-  inner += '</div>';
-  msgDiv.innerHTML = inner;
-
-  const sosBtn = msgDiv.querySelector('.big-sos-btn');
-  if (sosBtn) sosBtn.addEventListener('click', () => sendSOS(lastUserText));
-  const speakBtn = msgDiv.querySelector('.speak-btn');
-  if (speakBtn) speakBtn.addEventListener('click', () => speak(text));
-
-  chatMessages.appendChild(msgDiv);
-  scrollToBottom();
+  const sosBtn = div.querySelector('.big-sos-btn');
+  if (sosBtn) sosBtn.addEventListener('click', sendSOS);
+  div.querySelector('.speak-btn').addEventListener('click', () => speak(m.text));
 
   if (isRisk && navigator.vibrate) {
     try { navigator.vibrate([200, 100, 200]); } catch (_) {}
   }
+  return div;
 }
 
-function renderLoadingMessage(label = '考えています…') {
-  const msgDiv = document.createElement('div');
-  msgDiv.className = 'message assistant';
-  msgDiv.innerHTML = `
-    <div class="msg-bubble" style="color: #70757a;">
-      <span class="pulse-dot" style="width: 10px; height: 10px; background: #1a73e8;"></span>
-      ${escapeHtml(label)}
-    </div>
-  `;
-  chatMessages.appendChild(msgDiv);
-  scrollToBottom();
-  return msgDiv;
+function buildLoading(label = '考えています…') {
+  const div = document.createElement('div');
+  div.className = 'message model';
+  div.innerHTML = `<img src="assets/icon.svg" class="avatar" alt=""><div class="msg-body"><p class="loading-text">${escapeHtml(label)}</p></div>`;
+  return div;
 }
 
 function scrollToBottom() {
-  chatMessages.scrollTop = chatMessages.scrollHeight;
+  requestAnimationFrame(() => { chatEl.scrollTop = chatEl.scrollHeight; });
 }
 
 function escapeHtml(str) {
@@ -400,18 +612,35 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-// ---------- イベントリスナー ----------
+// ---------------------------------------------------------------------------
+// イベント
+// ---------------------------------------------------------------------------
 sendBtn.addEventListener('click', sendMessage);
 userInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
     e.preventDefault();
     sendMessage();
   }
 });
 
-settingsBtn.addEventListener('click', () => { settingsModal.hidden = false; });
+settingsBtn.addEventListener('click', () => { settingsModal.hidden = false; closeSidebar(); });
 closeSettingsBtn.addEventListener('click', () => { settingsModal.hidden = true; });
 saveSettingsBtn.addEventListener('click', saveSettings);
+clearChatsBtn.addEventListener('click', () => {
+  if (!confirm('この端末に保存されたチャット履歴をすべて消しますか？')) return;
+  chats = [];
+  currentChatId = null;
+  saveChats();
+  renderChat();
+  renderChatList();
+  settingsModal.hidden = true;
+});
 
+// ---------------------------------------------------------------------------
 // 初期化
+// ---------------------------------------------------------------------------
 loadSettings();
+loadChats();
+currentChatId = null; // 起動時は新しいチャットから（履歴はサイドバーから開ける）
+renderChat();
+renderChatList();
