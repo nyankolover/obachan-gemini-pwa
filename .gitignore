@@ -2,3 +2,4 @@
 .clasp.json
 backend/.clasp.json
 backend/Setup.gs
+backend/.setup_token

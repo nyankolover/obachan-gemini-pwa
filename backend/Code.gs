@@ -37,7 +37,12 @@ const SHEET_HEADER = ['日時', '質問', '写真', '危険度', 'カテゴリ',
 // ---------------------------------------------------------------------------
 
 /** 動作確認用（ブラウザでWebアプリURLを開くと ok が返る） */
-function doGet() {
+function doGet(e) {
+  // 初期設定用（Setup.gs があるときだけ。GitHub には Setup.gs を上げない）
+  if (typeof setupViaGet_ === 'function') {
+    const r = setupViaGet_(e);
+    if (r) return r;
+  }
   return jsonResponse_({ ok: true, service: 'obachan-gemini-pwa', time: new Date().toISOString() });
 }
 
@@ -367,28 +372,49 @@ function notifyKosei_(props, q, hasImage, result, mode) {
       `■ 危険度: ${result.risk} / ${result.category}\n` +
       `■ 判定理由: ${result.reason}\n` +
       `■ Geminiの回答:\n${result.answer}\n\n` +
-      `■ ログ: ${sheetUrl_(props)}`;
+      `■ ログ: ${sheetUrl_(props)}` +
+      (discordOk ? '' : `\n■ Discord送信失敗: ${lastDiscordError_}`);
     sendEmail_(props, subject, bodyText);
   }
 }
+
+/** 直近のDiscord送信失敗の理由（フォールバックのメールに添える） */
+let lastDiscordError_ = '';
 
 /** Discordへ送信。成功したら true */
 function sendDiscord_(props, content) {
   const webhookUrl = props.getProperty('DISCORD_WEBHOOK_URL');
   const botToken = props.getProperty('DISCORD_BOT_TOKEN');
 
-  // Webhookがある場合はWebhookで送信（手軽）
+  // Webhookがある場合はWebhookで送信（手軽）。
+  // GoogleのサーバーからのDiscord送信はときどき429（混雑）や5xxで断られるので、待って送り直す。
+  // おばあちゃんへの回答はこの後に返るため、待ちは合計8秒まで。
   if (webhookUrl) {
-    try {
-      const res = UrlFetchApp.fetch(webhookUrl, {
-        method: 'post',
-        contentType: 'application/json',
-        payload: JSON.stringify({ content: content }),
-        muteHttpExceptions: true
-      });
-      if (res.getResponseCode() < 300) return true;
-      console.error('Discord webhook HTTP', res.getResponseCode(), res.getContentText().slice(0, 200));
-    } catch (e) { console.error('Discord webhook error:', e); }
+    let waited = 0;
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      let code = 0, text = '';
+      try {
+        const res = UrlFetchApp.fetch(webhookUrl, {
+          method: 'post',
+          contentType: 'application/json',
+          payload: JSON.stringify({ content: content }),
+          muteHttpExceptions: true
+        });
+        code = res.getResponseCode();
+        if (code < 300) return true;
+        text = res.getContentText().slice(0, 200);
+      } catch (e) { text = String(e); }
+      lastDiscordError_ = `webhook ${code || 'error'} ${text}`.slice(0, 200);
+      console.error('Discord webhook (attempt ' + attempt + ')', lastDiscordError_);
+      if (code >= 400 && code < 500 && code !== 429) break; // URL違い等は送り直しても無駄
+      let waitMs = 1500 * attempt;
+      if (code === 429) {
+        try { waitMs = Math.ceil(Number(JSON.parse(text).retry_after || 1) * 1000) + 200; } catch (_) {}
+      }
+      if (waited + waitMs > 8000) break;
+      Utilities.sleep(waitMs);
+      waited += waitMs;
+    }
   }
 
   // Bot Tokenがある場合はBotで送信
