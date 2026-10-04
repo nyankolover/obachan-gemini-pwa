@@ -337,11 +337,13 @@ quickButtons.forEach(btn => {
     currentMode = btn.dataset.mode || 'chat';
     userInput.value = btn.dataset.prompt || '';
     userInput.dispatchEvent(new Event('input'));
-    if (btn.dataset.photo) {
-      if (currentImageBase64) sendMessage();
-      else imageUpload.click();
-    } else {
+    if (currentImageBase64) {
       sendMessage();
+    } else {
+      userInput.focus();
+      try {
+        userInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } catch (_) {}
     }
   });
 });
