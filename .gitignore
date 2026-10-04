@@ -1,0 +1,4 @@
+# clasp（GASへの反映用）。scriptId と、合言葉などを一度だけ流し込む Setup.gs は上げない
+.clasp.json
+backend/.clasp.json
+backend/Setup.gs

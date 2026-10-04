@@ -52,7 +52,8 @@ function doPost(e) {
 
   // 合言葉チェック
   const secret = props.getProperty('SHARED_SECRET');
-  if (secret && body.secret !== secret) {
+  // 合言葉が未設定のときも受け付けない（設定し忘れで誰でも使える窓口にしない）
+  if (!secret || body.secret !== secret) {
     return jsonResponse_({ ok: false, error: 'Unauthorized' });
   }
 
@@ -336,7 +337,8 @@ function notifyKosei_(props, q, hasImage, result, mode) {
     title = `💬 Geminiへの相談（${modeLabel} / 危険度: ${result.risk}）`;
   }
 
-  let content = `${title.trim()}\n` +
+  // 先頭の「👵 [おばあちゃん見守り]」は #butler の Butler が拾う目印（既読・状況フォロー・「ばあちゃん」コマンド）
+  let content = `👵 [おばあちゃん見守り] ${title.trim()}\n` +
     `> **相談内容**: ${q || '（写真のみの送信）'}\n` +
     (hasImage ? '> 📷 写真が添付されています\n' : '') +
     `> **Geminiの回答**: ${result.answer}\n`;
