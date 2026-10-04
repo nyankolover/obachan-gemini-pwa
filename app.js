@@ -81,6 +81,49 @@ function saveSettings() {
   settingsModal.hidden = true;
 }
 
+/**
+ * 洸晟から届いた設定リンク（?endpoint=...&secret=...&tel=...）を貼り付けて設定する。
+ * iPhoneはホーム画面のアプリとSafariで保存場所が分かれるため、リンクを開くだけでは設定が引き継がれない。
+ */
+function applySetupText(text) {
+  const status = $('setup-paste-status');
+  const m = String(text || '').match(/https?:\/\/\S+/);
+  let params = null;
+  try { params = m ? new URL(m[0]).searchParams : null; } catch (_) {}
+  if (!params || !params.get('endpoint') || !params.get('secret')) {
+    status.textContent = '設定のリンクが見つかりませんでした。洸晟から届いたリンクをコピーしてから、もう一度押してください。';
+    status.className = 'setup-paste-status ng';
+    status.hidden = false;
+    return false;
+  }
+  localStorage.setItem('gemini_api_endpoint', params.get('endpoint'));
+  localStorage.setItem('gemini_api_secret', params.get('secret'));
+  if (params.get('tel')) localStorage.setItem('kosei_tel', normalizeTel(params.get('tel')));
+  apiEndpointInput.value = params.get('endpoint');
+  apiSecretInput.value = params.get('secret');
+  updateCallButton();
+  $('setup-paste-area').value = '';
+  status.textContent = '✅ 設定できました。このまま質問できます。';
+  status.className = 'setup-paste-status ok';
+  status.hidden = false;
+  setTimeout(() => { settingsModal.hidden = true; status.hidden = true; }, 1500);
+  return true;
+}
+
+async function pasteSetupFromClipboard() {
+  try {
+    const text = await navigator.clipboard.readText();
+    applySetupText(text);
+  } catch (_) {
+    // クリップボードを読めない端末では、下の欄に長押しで貼ってもらう
+    const status = $('setup-paste-status');
+    status.textContent = '下の欄を長押しして「ペースト」を押してください。';
+    status.className = 'setup-paste-status ng';
+    status.hidden = false;
+    $('setup-paste-area').focus();
+  }
+}
+
 function normalizeTel(raw) {
   return String(raw || '').replace(/[^\d+]/g, '');
 }
@@ -628,6 +671,10 @@ userInput.addEventListener('keydown', (e) => {
 settingsBtn.addEventListener('click', () => { settingsModal.hidden = false; closeSidebar(); });
 closeSettingsBtn.addEventListener('click', () => { settingsModal.hidden = true; });
 saveSettingsBtn.addEventListener('click', saveSettings);
+$('paste-setup-btn').addEventListener('click', pasteSetupFromClipboard);
+$('setup-paste-area').addEventListener('input', e => {
+  if (/https?:\/\//.test(e.target.value)) applySetupText(e.target.value);
+});
 clearChatsBtn.addEventListener('click', () => {
   if (!confirm('この端末に保存されたチャット履歴をすべて消しますか？')) return;
   chats = [];

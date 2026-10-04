@@ -131,6 +131,16 @@
         <button id="close-settings-btn" class="close-btn" aria-label="閉じる">✕</button>
       </div>
       <div class="modal-body">
+        <!-- iPhoneはホーム画面のアプリとSafariで保存場所が別なので、届いたリンクを貼るだけで設定できるようにする -->
+        <div class="setup-paste">
+          <p class="setup-paste-lead">洸晟から届いた<strong>設定のリンク</strong>を、LINEで長押しして「コピー」してから、下のボタンを押してください。</p>
+          <button id="paste-setup-btn" class="primary-btn">📋 リンクを貼り付けて設定する</button>
+          <textarea id="setup-paste-area" class="setup-paste-area" rows="2" placeholder="うまくいかないときは、ここを長押しして「ペースト」"></textarea>
+          <p id="setup-paste-status" class="setup-paste-status" hidden></p>
+        </div>
+
+        <details class="setup-manual">
+        <summary>手で入力する（洸晟用）</summary>
         <label for="api-endpoint">Google Apps Script WebアプリURL</label>
         <input type="url" id="api-endpoint" placeholder="https://script.google.com/macros/s/.../exec">
 
@@ -142,6 +152,7 @@
 
         <p class="modal-hint">設定はこの端末のブラウザ内にだけ保存されます。電話番号はGAS側の KOSEI_TEL からも自動で受け取ります。</p>
         <button id="save-settings-btn" class="primary-btn">保存</button>
+        </details>
         <button id="clear-chats-btn" class="text-btn">この端末のチャット履歴をすべて消す</button>
       </div>
     </div>

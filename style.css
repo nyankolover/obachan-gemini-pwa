@@ -758,6 +758,39 @@ textarea::placeholder {
   border-color: var(--primary);
 }
 
+.setup-paste {
+  margin-bottom: 16px;
+}
+
+.setup-paste-lead {
+  font-size: 17px;
+  margin: 0 0 12px;
+}
+
+.setup-paste-area {
+  margin-top: 12px;
+  border: 2px dashed #c4c7c5;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 16px;
+}
+
+.setup-paste-status {
+  margin: 10px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.setup-paste-status.ok { color: #137333; }
+.setup-paste-status.ng { color: #c5221f; }
+
+.setup-manual summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 14px;
+  margin: 8px 0;
+}
+
 .modal-hint {
   font-size: 13px;
   color: var(--text-muted);
