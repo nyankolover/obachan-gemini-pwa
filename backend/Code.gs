@@ -26,7 +26,7 @@
  */
 
 const CHANNEL_ID = '1526362180826562590'; // Discord #Claudenotice
-const MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
+const MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash'];
 const MODEL_BUDGET_MS = 50 * 1000; // これを過ぎたら次のモデルを試さない（混雑時に何分も待たせない）
 const ANSWER_KEEP_SEC = 600;       // 答えを取っておく時間。iPhoneが約60秒で通信を打ち切っても、あとで取りに来られる
 const NOTIFY_AT = 60;        // 危険度60以上でDiscordに強力警告（メンション＋メール）
@@ -104,6 +104,7 @@ function doPost(e) {
     kosei_reply: props.getProperty('KOSEI_MESSAGE') || null,
     kosei_tel: props.getProperty('KOSEI_TEL') || null
   };
+  if (result.category === '判定エラー') reply.debug = result.reason;
   if (rid) safeRun_('keepAnswer', () => CacheService.getScriptCache().put('ans_' + rid, JSON.stringify(reply), ANSWER_KEEP_SEC));
   return jsonResponse_(reply);
 }
@@ -222,6 +223,7 @@ function askGeminiWithSafety_(q, imageBase64, mode, history, props) {
 
   // モデルのフォールバック実行
   const started = Date.now();
+  let lastErr = '';
   for (const model of MODELS) {
     if (Date.now() - started > MODEL_BUDGET_MS) {
       console.warn(`時間切れのため ${model} 以降を試さない（${Date.now() - started}ms）`);
@@ -243,9 +245,11 @@ function askGeminiWithSafety_(q, imageBase64, mode, history, props) {
           return applyHeuristic_(normalizeResult_(parsed), heuristic);
         }
       } else {
+        lastErr += `${model} HTTP ${res.getResponseCode()}: ${res.getContentText().slice(0, 200)} | `;
         console.warn(`Model ${model} HTTP ${res.getResponseCode()}: ${res.getContentText().slice(0, 300)}`);
       }
     } catch (e) {
+      lastErr += `${model} failed: ${e} | `;
       console.warn(`Model ${model} failed:`, e);
     }
   }
@@ -263,7 +267,7 @@ function askGeminiWithSafety_(q, imageBase64, mode, history, props) {
     answer: 'エラーが出ました。もう一度お試しください。\nそれでもだめなときは、洸晟に連絡してください。',
     risk: heuristic.risk,
     category: '判定エラー',
-    reason: '全モデル呼び出し失敗' + (heuristic.hits.length ? '（キーワード: ' + heuristic.hits.join('、') + '）' : '')
+    reason: '全モデル呼び出し失敗 [' + lastErr + ']' + (heuristic.hits.length ? '（キーワード: ' + heuristic.hits.join('、') + '）' : '')
   };
 }
 
@@ -271,7 +275,7 @@ function askGeminiWithSafety_(q, imageBase64, mode, history, props) {
 function normalizeResult_(r) {
   const risk = Math.max(0, Math.min(100, parseInt(r.risk, 10) || 0));
   return {
-    answer: String(r.answer || 'もう一度お試しください。'),
+    answer: String(r.answer || 'もう一度お試しください。').replace(/\\n/g, '\n'),
     risk: risk,
     category: String(r.category || '不明'),
     reason: String(r.reason || '')
