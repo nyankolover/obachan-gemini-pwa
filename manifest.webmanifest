@@ -1,6 +1,6 @@
 {
-  "name": "Gemini",
-  "short_name": "Gemini",
+  "name": "AIこう",
+  "short_name": "AIこう",
   "description": "おばあちゃん専用 AIアシスタント",
   "start_url": "./index.html",
   "display": "standalone",
