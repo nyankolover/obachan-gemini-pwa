@@ -575,7 +575,7 @@ async function sendMessage() {
   } catch (err) {
     console.error('Send error:', err);
     loading.remove();
-    const msg = addMessage({ role: 'model', text: 'お返事を受け取れませんでした。少し待ってから、もう一度お試しください。\nお急ぎのとき、お金や電話の話のときは、洸晟に電話してください。', risk: 0 });
+    const msg = addMessage({ role: 'model', text: 'お返事を受け取れませんでした。少し待ってから、もう一度お試しください。', risk: 0 });
     inner.appendChild(buildModelMessage(msg));
   } finally {
     busy = false;
