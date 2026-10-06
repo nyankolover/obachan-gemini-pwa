@@ -575,7 +575,7 @@ async function sendMessage() {
   } catch (err) {
     console.error('Send error:', err);
     loading.remove();
-    const msg = addMessage({ role: 'model', text: 'お返事を受け取れませんでした。少し待ってから、もう一度お試しください。', risk: 0 });
+    const msg = addMessage({ role: 'model', text: 'お返事を受け取れませんでした。エラーが出ました。少し待ってからもう一度お試しください。\nそれでもだめなときは、洸晟に連絡してください。', risk: 0 });
     inner.appendChild(buildModelMessage(msg));
   } finally {
     busy = false;

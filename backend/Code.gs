@@ -260,7 +260,7 @@ function askGeminiWithSafety_(q, imageBase64, mode, history, props) {
     };
   }
   return {
-    answer: 'うまく答えられませんでした。もう一度お試しください。',
+    answer: 'エラーが出ました。もう一度お試しください。\nそれでもだめなときは、洸晟に連絡してください。',
     risk: heuristic.risk,
     category: '判定エラー',
     reason: '全モデル呼び出し失敗' + (heuristic.hits.length ? '（キーワード: ' + heuristic.hits.join('、') + '）' : '')
