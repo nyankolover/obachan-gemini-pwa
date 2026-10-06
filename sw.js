@@ -1,4 +1,4 @@
-const CACHE_NAME = 'obachan-gemini-v6';
+const CACHE_NAME = 'obachan-gemini-v9';
 const ASSETS = [
   './',
   './index.html',

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#ffffff">
-  <title>Gemini</title>
+  <title>AIこう</title>
 
   <!-- PWA & iOS 設定 -->
   <link rel="manifest" href="manifest.webmanifest">
@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="assets/icon-180.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Gemini">
+  <meta name="apple-mobile-web-app-title" content="AIこう">
 
   <link rel="stylesheet" href="style.css">
 </head>
@@ -38,41 +38,16 @@
       <header class="topbar">
         <button id="menu-btn" class="icon-btn" aria-label="メニュー">☰</button>
         <div class="brand">
-          <span class="brand-title">Gemini</span>
+          <span class="brand-title">AIこう</span>
         </div>
-        <a id="call-btn" class="call-btn" href="#" hidden>📞<span class="call-label">洸晟に電話</span></a>
       </header>
 
       <main id="chat-messages" class="chat">
-        <!-- 初期画面（Gemini風の挨拶と提案カード） -->
+        <!-- 初期画面（挨拶の吹き出しだけ） -->
         <section id="welcome" class="welcome">
-          <h1 class="welcome-title">こんにちは</h1>
-          <p class="welcome-sub">今日は何をお手伝いしましょうか？</p>
-          <div class="suggestions">
-            <button class="suggestion-card" data-mode="ad_check" data-photo="1"
-              data-prompt="この広告はあやしくないですか？押しても大丈夫ですか？">
-              <span class="suggestion-icon">📰</span>
-              <span class="suggestion-text">この広告、あやしい？</span>
-              <span class="suggestion-sub">写真を選ぶとすぐ判定します</span>
-            </button>
-            <button class="suggestion-card" data-mode="ad_check" data-photo="1"
-              data-prompt="この画面が出てきました。どうすればいいですか？">
-              <span class="suggestion-icon">📱</span>
-              <span class="suggestion-text">この画面、なに？</span>
-              <span class="suggestion-sub">急に出てきた警告や通知に</span>
-            </button>
-            <button class="suggestion-card" data-mode="ad_check" data-photo="1"
-              data-prompt="このメール（またはメッセージ）は本物ですか？">
-              <span class="suggestion-icon">✉️</span>
-              <span class="suggestion-text">このメール、本物？</span>
-              <span class="suggestion-sub">宅配・銀行・役所を名乗るものに</span>
-            </button>
-            <button class="suggestion-card" data-mode="chat"
-              data-prompt="知らない番号から電話がかかってきました。出ても大丈夫ですか？">
-              <span class="suggestion-icon">📞</span>
-              <span class="suggestion-text">知らない電話が来た</span>
-              <span class="suggestion-sub">出る前に相談</span>
-            </button>
+          <div class="welcome-bubble">
+            <img src="assets/icon.svg" class="avatar" alt="">
+            <p class="bubble">こんにちは😊<br>気になることがあれば、写真を送ったり、声で話しかけてください。<br>あやしい広告やメールも、写真を送ってくれれば見ますよ。</p>
           </div>
         </section>
       </main>
@@ -80,18 +55,6 @@
       <!-- 入力エリア -->
       <footer class="composer">
         <div class="composer-inner">
-          <!-- 会話が始まったあとも使えるコンパクトな提案チップ -->
-          <div class="chips" id="chips">
-            <button class="chip" data-mode="ad_check" data-photo="1"
-              data-prompt="この広告はあやしくないですか？押しても大丈夫ですか？">📰 この広告あやしい？</button>
-            <button class="chip" data-mode="ad_check" data-photo="1"
-              data-prompt="この画面が出てきました。どうすればいいですか？">📱 この画面なに？</button>
-            <button class="chip" data-mode="ad_check" data-photo="1"
-              data-prompt="このメール（またはメッセージ）は本物ですか？">✉️ このメール本物？</button>
-            <button class="chip" data-mode="chat"
-              data-prompt="知らない番号から電話がかかってきました。出ても大丈夫ですか？">📞 知らない電話が来た</button>
-          </div>
-
           <div id="composer-box" class="composer-box">
             <div id="image-preview-bar" class="image-preview" hidden>
               <img id="preview-img" src="" alt="添付画像">
@@ -102,7 +65,7 @@
               <span id="voice-status-text">お話しください…</span>
               <button id="stop-voice-btn" class="mini-btn">完了</button>
             </div>
-            <textarea id="user-input" placeholder="Gemini に質問する" rows="1"></textarea>
+            <textarea id="user-input" placeholder="メッセージを入力" rows="1"></textarea>
             <div class="composer-actions">
               <label for="image-upload" class="tool-btn" title="写真・スクリーンショットを添付">
                 📷<span class="tool-label">写真</span>
@@ -116,7 +79,7 @@
             </div>
           </div>
           <p class="composer-note">
-            Gemini の回答は間違うことがあります。お金・暗証番号・カードの話は、必ず洸晟に電話で確認してください。
+            AIこうの答えは間違うことがあります。お金・暗証番号・カードの話は、慎重にお願いします。
           </p>
         </div>
       </footer>

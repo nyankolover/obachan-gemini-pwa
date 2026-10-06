@@ -913,3 +913,225 @@ textarea::placeholder {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ===================================================================
+   LINE 風テーマ（スマホ向け・試作）
+   - 緑の自分の吹き出し／白い相手の吹き出し／青みグレーの背景
+   - 提案は初期画面の1か所だけ（会話中は入力欄の上に1行のチップ）
+   =================================================================== */
+:root {
+  --line-bg: #dfe7f1;
+  --line-green: #8de055;
+  --line-green-text: #1f1f1f;
+}
+
+.chat {
+  background: var(--line-bg);
+}
+
+.message.user .msg-body {
+  background: var(--line-green);
+  color: var(--line-green-text);
+  border-radius: 18px 4px 18px 18px;
+}
+
+.message.model .msg-body {
+  flex: 0 1 auto;
+  max-width: 85%;
+}
+
+.message.model .msg-card,
+.message.model .msg-body > .loading-text {
+  background: #fff;
+  border-radius: 4px 18px 18px 18px;
+  padding: 12px 16px;
+}
+
+.message.model .avatar {
+  border-radius: 50%;
+}
+
+.msg-body.risk .msg-card {
+  background: var(--danger-bg);
+}
+
+.msg-body.sos-done .msg-card {
+  background: var(--safe-bg);
+}
+
+.chat-inner {
+  gap: 18px;
+}
+
+/* 初期画面: 挨拶は相手の吹き出しにして、見出しの大文字は引っ込める */
+.welcome-title,
+.welcome-sub {
+  display: none;
+}
+
+.welcome {
+  padding-top: 16px;
+}
+
+.welcome-bubble {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.welcome-bubble .avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.bubble {
+  background: #fff;
+  border-radius: 4px 18px 18px 18px;
+  padding: 12px 16px;
+  max-width: 85%;
+}
+
+.suggestions-lead {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+/* 提案カード → 1行ずつの返信ボタン */
+.suggestions {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.suggestion-card {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  min-height: 0;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid #fff;
+  border-radius: 999px;
+}
+
+.suggestion-icon {
+  font-size: 22px;
+}
+
+.suggestion-sub {
+  display: none;
+}
+
+/* 初期画面ではチップを出さない（カードと重複するため） */
+.main:has(#welcome:not([hidden])) .chips {
+  display: none;
+}
+
+.composer {
+  background: var(--line-bg);
+}
+
+.composer-box {
+  background: #fff;
+}
+
+@media (min-width: 900px) {
+  .suggestions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 899px) {
+  .composer-note {
+    font-size: 11px;
+    line-height: 1.4;
+    padding: 0 8px 4px;
+  }
+}
+
+/* ---- LINE 風の入力欄: [📷][🎤][ メッセージ入力 ][➤] を1行に ---- */
+.composer {
+  background: #f7f8fa;
+  border-top: 1px solid #e3e6ea;
+}
+
+.composer-inner {
+  padding-top: 8px;
+}
+
+.composer-box,
+.composer-box:focus-within,
+.composer-box.dragover {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+.composer-box.dragover {
+  outline: 2px dashed var(--line-green);
+}
+
+.image-preview,
+.voice-status {
+  flex-basis: 100%;
+}
+
+.composer-actions {
+  display: contents;
+}
+
+.spacer {
+  display: none;
+}
+
+.tool-btn {
+  order: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  justify-content: center;
+  font-size: 18px;
+  margin-bottom: 2px;
+}
+
+.tool-btn .tool-label {
+  display: none;
+}
+
+textarea {
+  order: 1;
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  background: #fff;
+  border: 1px solid #dfe3e8;
+  border-radius: 20px;
+  padding: 8px 14px;
+  font-size: 17px;
+}
+
+.send-btn {
+  order: 2;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 1px;
+  background: #06c755;
+  font-size: 16px;
+}
+
+.send-btn:hover {
+  background: #05a948;
+}
+
+.composer-note {
+  font-size: 11px;
+  padding: 6px 8px 0;
+}
