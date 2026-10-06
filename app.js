@@ -20,7 +20,6 @@ const voiceStatusBar = $('voice-status-bar');
 const voiceStatusText = $('voice-status-text');
 const stopVoiceBtn = $('stop-voice-btn');
 const composerBox = $('composer-box');
-const callBtn = $('call-btn');
 const callBtnSide = $('call-btn-side');
 const sidebar = $('sidebar');
 const sidebarOverlay = $('sidebar-overlay');
@@ -137,7 +136,7 @@ function getKoseiTel() {
 function updateCallButton() {
   const tel = getKoseiTel();
   koseiTelInput.value = tel;
-  [callBtn, callBtnSide].forEach(btn => {
+  [callBtnSide].forEach(btn => {
     if (tel) {
       btn.href = 'tel:' + tel;
       btn.hidden = false;
@@ -522,8 +521,9 @@ async function sendMessage() {
   if (busy) return;
   const text = userInput.value.trim();
   const image = currentImageBase64;
-  const mode = currentMode;
   if (!text && !image) return;
+  // 写真つきは詐欺広告チェックモードで判定する（サジェストなしでも判定が出るように）
+  const mode = image ? 'ad_check' : currentMode;
 
   const conn = getConnection();
   if (!conn) return;

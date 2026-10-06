@@ -40,44 +40,14 @@
         <div class="brand">
           <span class="brand-title">Gemini</span>
         </div>
-        <a id="call-btn" class="call-btn" href="#" hidden>📞<span class="call-label">洸晟に電話</span></a>
       </header>
 
       <main id="chat-messages" class="chat">
-        <!-- 初期画面（Gemini風の挨拶と提案カード） -->
+        <!-- 初期画面（挨拶の吹き出しだけ） -->
         <section id="welcome" class="welcome">
-          <h1 class="welcome-title">こんにちは</h1>
-          <p class="welcome-sub">今日は何をお手伝いしましょうか？</p>
           <div class="welcome-bubble">
             <img src="assets/icon.svg" class="avatar" alt="">
-            <p class="bubble">こんにちは😊<br>気になることがあれば、写真を送ったり、声で話しかけてね。</p>
-          </div>
-          <p class="suggestions-lead">よく使うもの</p>
-          <div class="suggestions">
-            <button class="suggestion-card" data-mode="ad_check" data-photo="1"
-              data-prompt="この広告はあやしくないですか？押しても大丈夫ですか？">
-              <span class="suggestion-icon">📰</span>
-              <span class="suggestion-text">この広告、あやしい？</span>
-              <span class="suggestion-sub">写真を選ぶとすぐ判定します</span>
-            </button>
-            <button class="suggestion-card" data-mode="ad_check" data-photo="1"
-              data-prompt="この画面が出てきました。どうすればいいですか？">
-              <span class="suggestion-icon">📱</span>
-              <span class="suggestion-text">この画面、なに？</span>
-              <span class="suggestion-sub">急に出てきた警告や通知に</span>
-            </button>
-            <button class="suggestion-card" data-mode="ad_check" data-photo="1"
-              data-prompt="このメール（またはメッセージ）は本物ですか？">
-              <span class="suggestion-icon">✉️</span>
-              <span class="suggestion-text">このメール、本物？</span>
-              <span class="suggestion-sub">宅配・銀行・役所を名乗るものに</span>
-            </button>
-            <button class="suggestion-card" data-mode="chat"
-              data-prompt="知らない番号から電話がかかってきました。出ても大丈夫ですか？">
-              <span class="suggestion-icon">📞</span>
-              <span class="suggestion-text">知らない電話が来た</span>
-              <span class="suggestion-sub">出る前に相談</span>
-            </button>
+            <p class="bubble">こんにちは😊<br>気になることがあれば、写真を送ったり、声で話しかけてください。<br>あやしい広告やメールも、写真を送ってくれれば見ますよ。</p>
           </div>
         </section>
       </main>
@@ -85,18 +55,6 @@
       <!-- 入力エリア -->
       <footer class="composer">
         <div class="composer-inner">
-          <!-- 会話が始まったあとも使えるコンパクトな提案チップ -->
-          <div class="chips" id="chips">
-            <button class="chip" data-mode="ad_check" data-photo="1"
-              data-prompt="この広告はあやしくないですか？押しても大丈夫ですか？">📰 この広告あやしい？</button>
-            <button class="chip" data-mode="ad_check" data-photo="1"
-              data-prompt="この画面が出てきました。どうすればいいですか？">📱 この画面なに？</button>
-            <button class="chip" data-mode="ad_check" data-photo="1"
-              data-prompt="このメール（またはメッセージ）は本物ですか？">✉️ このメール本物？</button>
-            <button class="chip" data-mode="chat"
-              data-prompt="知らない番号から電話がかかってきました。出ても大丈夫ですか？">📞 知らない電話が来た</button>
-          </div>
-
           <div id="composer-box" class="composer-box">
             <div id="image-preview-bar" class="image-preview" hidden>
               <img id="preview-img" src="" alt="添付画像">
