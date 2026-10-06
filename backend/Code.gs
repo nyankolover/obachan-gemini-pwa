@@ -27,6 +27,8 @@
 
 const CHANNEL_ID = '1526362180826562590'; // Discord #Claudenotice
 const MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
+const MODEL_BUDGET_MS = 50 * 1000; // これを過ぎたら次のモデルを試さない（混雑時に何分も待たせない）
+const ANSWER_KEEP_SEC = 600;       // 答えを取っておく時間。iPhoneが約60秒で通信を打ち切っても、あとで取りに来られる
 const NOTIFY_AT = 60;        // 危険度60以上でDiscordに強力警告（メンション＋メール）
 const REASON_AT = 40;        // 危険度40以上で判定理由も通知
 const DISCORD_MAX_LEN = 1900; // Discord の 2000 文字制限対策
@@ -62,6 +64,13 @@ function doPost(e) {
     return jsonResponse_({ ok: false, error: 'Unauthorized' });
   }
 
+  // 打ち切られた質問の答えを取りに来た（2026-10-06：Gemini混雑でGASが約2分かかり、iPhoneが先に諦めた）
+  const rid = /^[A-Za-z0-9-]{8,64}$/.test(String(body.rid || '')) ? String(body.rid) : '';
+  if (body.type === 'poll') {
+    const saved = rid ? CacheService.getScriptCache().get('ans_' + rid) : null;
+    return jsonResponse_(saved ? JSON.parse(saved) : { ok: false, pending: true });
+  }
+
   const question = String(body.question || '').slice(0, 3000);
   const imageBase64 = body.image || null; // DataURL (data:image/jpeg;base64,...)
   const mode = body.mode === 'ad_check' ? 'ad_check' : 'chat';
@@ -86,15 +95,17 @@ function doPost(e) {
   // 3. 洸晟へ自動通報（Discord ＋ 危険時はメール）
   safeRun_('notify', () => notifyKosei_(props, question, !!imageBase64, result, mode));
 
-  // 4. アプリへ返答
-  return jsonResponse_({
+  // 4. アプリへ返答（打ち切られていた場合に備えて取っておく）
+  const reply = {
     ok: true,
     answer: result.answer,
     risk: result.risk,
     category: result.category,
     kosei_reply: props.getProperty('KOSEI_MESSAGE') || null,
     kosei_tel: props.getProperty('KOSEI_TEL') || null
-  });
+  };
+  if (rid) safeRun_('keepAnswer', () => CacheService.getScriptCache().put('ans_' + rid, JSON.stringify(reply), ANSWER_KEEP_SEC));
+  return jsonResponse_(reply);
 }
 
 /** 🆘 SOS処理 */
@@ -210,7 +221,12 @@ function askGeminiWithSafety_(q, imageBase64, mode, history, props) {
   };
 
   // モデルのフォールバック実行
+  const started = Date.now();
   for (const model of MODELS) {
+    if (Date.now() - started > MODEL_BUDGET_MS) {
+      console.warn(`時間切れのため ${model} 以降を試さない（${Date.now() - started}ms）`);
+      break;
+    }
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
     try {
       const res = UrlFetchApp.fetch(url, {

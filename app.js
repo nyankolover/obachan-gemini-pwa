@@ -41,6 +41,8 @@ const quickButtons = document.querySelectorAll('[data-prompt]');
 // 危険度しきい値（バックエンド NOTIFY_AT と同じ）
 const RISK_ALERT_AT = 60;
 const HISTORY_TURNS = 8;      // Gemini に渡す直近のやり取り数
+const POLL_EVERY_MS = 5000;   // 打ち切られた答えを取りに行く間隔
+const POLL_MAX_MS = 4 * 60 * 1000; // 取りに行くのをやめるまで（GASの答えは10分取っておく）
 const MAX_CHATS = 50;         // 端末に保存するチャット数
 const IMAGE_MAX_PX = 1280;    // 送信前に縮小する最大辺
 
@@ -469,6 +471,26 @@ function getConnection() {
   return { endpoint, secret };
 }
 
+function newRequestId() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+}
+
+// 打ち切られた質問の答えを、GASが作り終えるまで取りに行く（最大4分）
+async function waitForAnswer(conn, rid) {
+  const deadline = Date.now() + POLL_MAX_MS;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, POLL_EVERY_MS));
+    try {
+      const data = await postToBackend(conn, { type: 'poll', rid: rid });
+      if (data && data.ok) return data;
+    } catch (e) {
+      console.warn('poll error:', e);
+    }
+  }
+  return null;
+}
+
 async function postToBackend(conn, payload) {
   const res = await fetch(conn.endpoint, {
     method: 'POST',
@@ -526,8 +548,18 @@ async function sendMessage() {
   inner.appendChild(loading);
   scrollToBottom();
 
+  const rid = newRequestId();
   try {
-    const data = await postToBackend(conn, { question: text, image: image, mode: mode, history: history });
+    let data;
+    try {
+      data = await postToBackend(conn, { question: text, image: image, mode: mode, history: history, rid: rid });
+    } catch (firstErr) {
+      // Geminiが混んでいるとGASが1分を超え、iPhoneが先に通信を打ち切る。GASは答えを作り続けるので取りに行く
+      console.warn('Send error, waiting for answer:', firstErr);
+      setLoadingLabel(loading, 'お返事を待っています…');
+      data = await waitForAnswer(conn, rid);
+      if (!data) throw firstErr;
+    }
     loading.remove();
     if (data.ok) {
       if (data.kosei_tel && !getKoseiTel()) {
@@ -543,7 +575,7 @@ async function sendMessage() {
   } catch (err) {
     console.error('Send error:', err);
     loading.remove();
-    const msg = addMessage({ role: 'model', text: '通信がつながりませんでした。電波のよいところで、もう一度お試しください。', risk: 0 });
+    const msg = addMessage({ role: 'model', text: 'お返事を受け取れませんでした。少し待ってから、もう一度お試しください。\nお急ぎのとき、お金や電話の話のときは、洸晟に電話してください。', risk: 0 });
     inner.appendChild(buildModelMessage(msg));
   } finally {
     busy = false;
@@ -643,6 +675,11 @@ function buildLoading(label = '考えています…') {
   div.className = 'message model';
   div.innerHTML = `<img src="assets/icon.svg" class="avatar" alt=""><div class="msg-body"><p class="loading-text">${escapeHtml(label)}</p></div>`;
   return div;
+}
+
+function setLoadingLabel(div, label) {
+  const p = div.querySelector('.loading-text');
+  if (p) p.textContent = label;
 }
 
 function scrollToBottom() {
